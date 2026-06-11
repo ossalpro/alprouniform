@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ALPRO UNIFORM - Sistem Sinkron Mutlak Lowercase</title>
+  
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+  
+  <style>
+    :root {
+      --primary-color: #0d6efd;
+      --sidebar-bg: #1e293b;
+      --content-bg: #f1f5f9;
+      --accent-color: #38bdf8;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--content-bg);
+      overflow-x: hidden;
+    }
+
+    #sidebar {
+      min-width: 260px;
+      max-width: 260px;
+      background-color: var(--sidebar-bg);
+      min-height: 100vh;
+      transition: all 0.3s;
+    }
+
+    .sidebar-link {
+      color: #94a3b8;
+      text-decoration: none;
+      padding: 12px 20px;
+      display: block;
+      transition: all 0.2s;
+      border-radius: 8px;
+      margin: 4px 12px;
+    }
+
+    .sidebar-link:hover, .sidebar-link.active {
+      background-color: rgba(255, 255, 255, 0.1);
+      color: white;
+    }
+
+    .main-content {
+      width: 100%;
+      padding: 30px;
+    }
+
+    .loader {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(255,255,255,0.7);
+      z-index: 9999;
+      justify-content: center;
+      align-items: center;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="loader" id="globalLoader">
+    <div class="spinner-border text-primary" role="status"></div>
+  </div>
+
+  <div class="d-flex">
+    <div id="sidebar" class="text-white pt-4">
+      <div class="px-4 mb-4">
+        <h5 class="fw-bold text-accent"><i class="bi bi-shirt-fill me-2"></i>ALPRO UNIFORM</h5>
+        <small class="text-muted">HQ Operation Support</small>
+      </div>
+      <nav class="mt-4">
+        <a href="#" class="sidebar-link active" onclick="switchMenu('dashboard', this)"><i class="bi bi-speedometer2 me-2"></i> Dashboard</a>
+        <a href="#" class="sidebar-link" onclick="switchMenu('stok', this)"><i class="bi bi-box-seam me-2"></i> Master Stok Gudang</a>
+        <a href="#" class="sidebar-link" onclick="switchMenu('request', this)"><i class="bi bi-clipboard-plus me-2"></i> Request (Alokasi Keluar)</a>
+        <a href="#" class="sidebar-link" onclick="switchMenu('seragam_masuk', this)"><i class="bi bi-arrow-down-left-circle me-2"></i> Seragam Masuk</a>
+        <a href="#" class="sidebar-link" onclick="switchMenu('peminjaman', this)"><i class="bi bi-arrow-up-right-circle me-2"></i> Peminjaman Event</a>
+        <a href="#" class="sidebar-link" onclick="switchMenu('transaksi', this)"><i class="bi bi-arrow-left-right me-2"></i> Riwayat Transaksi</a>
+      </nav>
+    </div>
+
+    <div class="main-content">
+      <div id="app"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <script>
+    // ✅ KREDENSIAL ASLI SUPABASE KAMU SUDAH DISINKRONKAN
+    const SUPABASE_URL = "https://mlpizvcjubahyqlgwpmb.supabase.co"; 
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1scGl6dmNqdWJhaHlxbGd3cG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxOTMyMjEsImV4cCI6MjA4ODc2OTIyMX0.wxxlizU7FqX8v_HwhhURAPWj_XbmZVQjBq1Hbi6iStA";
+
+    const supabaseHeaders = {
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+      "Content-Type": "application/json"
+    };
+
+    function showLoader(show) {
+      const loader = document.getElementById('globalLoader');
+      if (loader) loader.style.display = show ? 'flex' : 'none';
+    }
+
+    function showError(message) {
+      document.getElementById('app').innerHTML = `
+        <div class="alert alert-danger p-4 shadow-sm" role="alert">
+          <h4 class="alert-heading fw-bold"><i class="bi bi-exclamation-triangle-fill me-2"></i> Gagal Memuat Data!</h4>
+          <p>Terjadi kendala koneksi. Pastikan nama laci tabel & kolom di Supabase sudah dibuat dengan huruf kecil semua.</p>
+          <hr>
+          <p class="mb-0 small">Pesan Sistem / Error Log: <code>${message}</code></p>
+        </div>
+      `;
+    }
+
+    function switchMenu(menu, element) {
+      document.querySelectorAll('.sidebar-link').forEach(el => el.classList.remove('active'));
+      if (element) element.classList.add('active');
+      
+      if(menu === 'dashboard') renderDashboard();
+      if(menu === 'stok') renderStokGudang();
+      if(menu === 'request') renderRequestSeragam();
+      if(menu === 'seragam_masuk') renderSeragamMasuk();
+      if(menu === 'peminjaman') renderPeminjamanEvent();
+      if(menu === 'transaksi') renderRiwayatTransaksi();
+    }
+
+    // ==========================================
+    // 1. MENU DASHBOARD SUMMARY
+    // ==========================================
+    async function renderDashboard() {
+      showLoader(true);
+      try {
+        const [resRingkasan, resRequest, resTx] = await Promise.all([
+          fetch(`${SUPABASE_URL}/rest/v1/dashboard_ringkasan_gudang`, { headers: supabaseHeaders }),
+          fetch(`${SUPABASE_URL}/rest/v1/request_seragam?select=departemen_cabang`, { headers: supabaseHeaders }),
+          fetch(`${SUPABASE_URL}/rest/v1/transaksi_seragam?tipe_transaksi=eq.KELUAR&select=seragam_id,jumlah`, { headers: supabaseHeaders })
+        ]);
+
+        if(!resRingkasan.ok) throw new Error(`HTTP ${resRingkasan.status} - Gagal memuat view ringkasan dashboard.`);
+        
+        const data = await resRingkasan.json();
+        const d = data[0] || { total_stok_baru_layak: 0, total_request_pending: 0, alokasi_bulan_ini: 0, peminjaman_aktif: 0, varian_stok_kritis: 0 };
+
+        // Agregasi Top Cabang dari data request
+        let topCabangRows = '<tr><td colspan="2" class="text-center text-muted">Data tidak tersedia.</td></tr>';
+        if (resRequest.ok) {
+          const dataRequest = await resRequest.json();
+          const cabangCount = dataRequest.reduce((acc, r) => {
+            const key = r.departemen_cabang || 'Tidak Diketahui';
+            acc[key] = (acc[key] || 0) + 1;
+            return acc;
+          }, {});
+          const sortedCabang = Object.entries(cabangCount).sort((a, b) => b[1] - a[1]).slice(0, 7);
+          if (sortedCabang.length > 0) {
+            topCabangRows = sortedCabang.map(([nama, jumlah], i) => `
+              <tr>
+                <td><span class="badge bg-secondary me-2">${i + 1}</span>${nama}</td>
+                <td class="fw-bold text-primary text-end">${jumlah} request</td>
+              </tr>
+            `).join('');
+          }
+        }
+
+        // Agregasi Varian Paling Dibutuhkan dari transaksi KELUAR
+        let topVarianRows = '<tr><td colspan="2" class="text-center text-muted">Data tidak tersedia.</td></tr>';
+        if (resTx.ok) {
+          const dataTx = await resTx.json();
+          const varianCount = dataTx.reduce((acc, t) => {
+            const key = `ID Seragam #${t.seragam_id}`;
+            acc[key] = (acc[key] || 0) + (t.jumlah || 0);
+            return acc;
+          }, {});
+          const sortedVarian = Object.entries(varianCount).sort((a, b) => b[1] - a[1]).slice(0, 7);
+          if (sortedVarian.length > 0) {
+            topVarianRows = sortedVarian.map(([nama, jumlah], i) => `
+              <tr>
+                <td><span class="badge bg-secondary me-2">${i + 1}</span>${nama}</td>
+                <td class="fw-bold text-danger text-end">${jumlah} pcs keluar</td>
+              </tr>
+            `).join('');
+          }
+        }
+
+        document.getElementById('app').innerHTML = `
+          <h3 class="fw-bold mb-4">Dashboard Ringkasan</h3>
+          <div class="row g-4">
+            <div class="col-md-4">
+              <div class="card border-0 shadow-sm p-4 bg-white">
+                <div class="text-muted small text-uppercase fw-bold">Stok Baru / Layak</div>
+                <div class="display-5 fw-bold text-primary mt-2">${d.total_stok_baru_layak} <span class="fs-6 text-muted">pcs</span></div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="card border-0 shadow-sm p-4 bg-white">
+                <div class="text-muted small text-uppercase fw-bold">Request Pending</div>
+                <div class="display-5 fw-bold text-warning mt-2">${d.total_request_pending} <span class="fs-6 text-muted">surat</span></div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="card border-0 shadow-sm p-4 bg-white">
+                <div class="text-muted small text-uppercase fw-bold">Alokasi Bulan Ini</div>
+                <div class="display-5 fw-bold text-success mt-2">${d.alokasi_bulan_ini} <span class="fs-6 text-muted">pcs</span></div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card border-0 shadow-sm p-4 bg-white">
+                <div class="text-muted small text-uppercase fw-bold">Peminjaman Status Hack Aktif</div>
+                <div class="display-6 fw-bold text-info mt-2">${d.peminjaman_aktif} <span class="fs-6 text-muted">item</span></div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card border-0 shadow-sm p-4 bg-white">
+                <div class="text-muted small text-uppercase fw-bold">Varian Jenis Seragam Kritis</div>
+                <div class="display-6 fw-bold text-danger mt-2">${d.varian_stok_kritis} <span class="fs-6 text-muted">varian (≤ 5 pcs)</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECTION TABEL RINGKASAN ANALITIK -->
+          <div class="row g-4 mt-2">
+            <div class="col-md-6">
+              <div class="card border-0 shadow-sm bg-white h-100">
+                <div class="card-header bg-white border-bottom py-3 d-flex align-items-center gap-2">
+                  <i class="bi bi-building text-primary fs-5"></i>
+                  <span class="fw-bold">Top Request Cabang / Departemen</span>
+                </div>
+                <div class="card-body p-0">
+                  <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                      <tr>
+                        <th class="ps-3 small text-uppercase text-muted">Cabang / Departemen</th>
+                        <th class="pe-3 small text-uppercase text-muted text-end">Jumlah Request</th>
+                      </tr>
+                    </thead>
+                    <tbody class="ps-3">
+                      ${topCabangRows}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card border-0 shadow-sm bg-white h-100">
+                <div class="card-header bg-white border-bottom py-3 d-flex align-items-center gap-2">
+                  <i class="bi bi-graph-up-arrow text-danger fs-5"></i>
+                  <span class="fw-bold">Tren Varian Seragam Paling Dibutuhkan</span>
+                </div>
+                <div class="card-body p-0">
+                  <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                      <tr>
+                        <th class="ps-3 small text-uppercase text-muted">Varian Seragam</th>
+                        <th class="pe-3 small text-uppercase text-muted text-end">Total Keluar</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${topVarianRows}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      } catch (err) { 
+        console.error(err); 
+        showError(err.message);
+      } finally {
+        showLoader(false);
+      }
+    }
+
+    // ==========================================
+    // 2. MENU MASTER STOK GUDANG (monitor_stok_gudang)
+    // ==========================================
+    async function renderStokGudang() {
+      showLoader(true);
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/monitor_stok_gudang?order=seragam_id.asc`, { headers: supabaseHeaders });
+        if(!res.ok) throw new Error(`HTTP ${res.status} - Gagal mengambil data laci 'monitor_stok_gudang'.`);
+        
+        const data = await res.json();
+
+        let rows = data.map(s => `
+          <tr>
+            <td><strong>#${s.seragam_id || ''}</strong></td>
+            <td>${s.nama_seragam || ''}</td>
+            <td><span class="badge bg-light text-dark">${s.gender || ''}</span></td>
+            <td><span class="fw-bold">${s.ukuran || ''}</span></td>
+            <td class="text-success fw-bold">${s.stok_baru_dan_layak ?? 0} pcs</td>
+            <td class="text-warning fw-bold">${s.stok_bekas_tidak_layak ?? 0} pcs</td>
+            <td class="table-primary fw-bold text-center">${s.total_stok_fisik ?? 0} pcs</td>
+          </tr>
+        `).join('');
+
+        document.getElementById('app').innerHTML = `
+          <div class="card p-4 shadow-sm border-0 bg-white">
+            <h4 class="fw-bold mb-4 text-primary"><i class="bi bi-box-seam me-2"></i>Master Transparansi Stok Gudang</h4>
+            <div class="table-responsive">
+              <table class="table table-hover align-middle">
+                <thead class="table-light text-uppercase small">
+                  <tr>
+                    <th>Kode Seragam</th><th>Nama Item</th><th>Gender</th><th>Ukuran</th>
+                    <th>Baru / Layak</th><th>Bekas (Event)</th><th class="text-center">Total Fisik Gudang</th>
+                  </tr>
+                </thead>
+                <tbody>${rows || '<tr><td colspan="7" class="text-center">Gudang kosong.</td></tr>'}</tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      } catch (err) { 
+        console.error(err); 
+        showError(err.message);
+      } finally {
+        showLoader(false);
+      }
+    }
+
+    // ==========================================
+    // 3. MENU REQUEST SERAGAM (request_seragam)
+    // ==========================================
+    async function renderRequestSeragam() {
+  showLoader(true);
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/request_seragam?order=id.desc`, { headers: supabaseHeaders });
+    if(!res.ok) throw new Error(`HTTP ${res.status} - Gagal memuat data laci 'request_seragam'.`);
+    
+    const dataRaw = await res.json();
+
+    // 🌟 KUNCI PERBAIKAN: Saring agar data yang berstatus 'Disetujui' langsung dieliminasi dari layar
+    const data = dataRaw.filter(r => r.status_request !== 'Disetujui');
+
+    let rows = data.map(r => `
+      <tr>
+        <td>${r.nama_karyawan || ''} (NIP: ${r.nip || '-'})</td>
+        <td>${r.posisi_kerja || ''}</td>
+        <td>${r.departemen_cabang || ''}</td>
+        <td><span class="badge bg-info text-dark">${r.gender_karyawan || '-'}</span></td>
+        <td><small>Jas: ${r.ukuran_jas || '-'}<br>Kemeja: ${r.ukuran_kemeja || '-'}<br>Kaos: ${r.ukuran_kaos || '-'}</small></td>
+        <td>
+          <select class="form-select form-select-sm fw-bold ${r.status_request === 'Disetujui' ? 'text-success' : 'text-warning'}" 
+            onchange="ubahStatusRequest(${r.id}, this.value)">
+            <option value="Pending" ${r.status_request === 'Pending' ? 'selected' : ''}>⏳ Pending</option>
+            <option value="Disetujui" ${r.status_request === 'Disetujui' ? 'selected' : ''}>✅ Disetujui</option>
+          </select>
+        </td>
+      </tr>
+    `).join('');
+    
+        document.getElementById('app').innerHTML = `
+          <div class="card p-4 shadow-sm border-0 bg-white mb-4">
+            <h5 class="fw-bold text-dark mb-2"><i class="bi bi-file-earmark-spreadsheet-fill text-success me-2"></i>Upload Request Seragam via CSV</h5>
+            <div class="row g-3 align-items-center mt-1">
+              <div class="col-auto"><input type="file" id="csvFilePicker" accept=".csv" class="form-control form-control-sm"></div>
+              <div class="col-auto"><button class="btn btn-sm btn-primary px-3" onclick="eksekusiUploadCSV()"><i class="bi bi-cloud-upload me-1"></i> Jalankan Upload</button></div>
+              <div class="col-auto"><button class="btn btn-sm btn-outline-success px-3" onclick="downloadTemplateRequest()"><i class="bi bi-download me-1"></i> Download Template CSV</button></div>
+            </div>
+          </div>
+
+          <div class="card p-4 shadow-sm border-0 bg-white">
+            <h4 class="fw-bold mb-4 text-primary">Daftar Permintaan Jatah Seragam Karyawan</h4>
+            <div class="table-responsive">
+              <table class="table table-hover align-middle">
+                <thead class="table-light text-uppercase small">
+                  <tr><th>Nama Karyawan</th><th>Posisi</th><th>Cabang</th><th>Gender</th><th>Ukuran Jatah</th><th>Status</th></tr>
+                </thead>
+                <tbody>${rows || '<tr><td colspan="6" class="text-center">Belum ada data permintaan.</td></tr>'}</tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      } catch (err) { 
+        console.error(err); 
+        showError(err.message);
+      } finally {
+        showLoader(false);
+      }
+    }
+
+    async function ubahStatusRequest(id, statusBaru) {
+      showLoader(true);
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/request_seragam?id=eq.${id}`, {
+          method: "PATCH",
+          headers: supabaseHeaders,
+          body: JSON.stringify({ status_request: statusBaru })
+        });
+        if (res.ok) {
+          Swal.fire('Berhasil!', `Status diperbarui menjadi ${statusBaru}.`, 'success');
+          renderRequestSeragam();
+        } else {
+          throw new Error("Gagal merubah status request.");
+        }
+      } catch (err) { 
+        Swal.fire('Gagal!', err.message, 'error'); 
+      } finally {
+        showLoader(false);
+      }
+    }
+
+    // ==========================================
+    // 4. MENU SERAGAM MASUK (MULTI-INPUT DATA MASSAL)
+    // ==========================================
+let cachedMasterSeragam = [];
+// Penampung data riwayat mutasi untuk filter & export CSV
+let cachedTransactions = [];
+let filteredTransactions = [];    
+let globalMasterSeragamOptions = ""; // Menyimpan cache daftar seragam agar hemat baris
+
+    async function renderSeragamMasuk() {
+  showLoader(true);
+  try {
+    const resMaster = await fetch(`${SUPABASE_URL}/rest/v1/master_seragam?order=id.asc`, { headers: supabaseHeaders });
+    if(!resMaster.ok) throw new Error("Gagal memuat item laci master_seragam.");
+    
+    const masterSeragam = await resMaster.json();
+    
+    // 🌟 KUNCI PERBAIKAN 1: Simpan data ke cache agar bisa dibaca saat upload CSV
+    cachedMasterSeragam = masterSeragam; 
+    
+    globalMasterSeragamOptions = masterSeragam.map(m => `<option value="${m.id}">${m.nama_seragam} - ${m.gender} (${m.ukuran})</option>`).join('');
+
+    document.getElementById('app').innerHTML = `
+      <h3 class="fw-bold mb-4">Penerimaan Seragam Masuk</h3>
+          <div class="card p-4 shadow-sm border-0 bg-white mb-4">
+            <label class="fw-bold mb-2">Pilih Kategori Seragam Masuk:</label>
+            <select id="sumberMasukSelect" class="form-select w-50" onchange="toggleAlurMasuk(this.value)">
+              <option value="">-- Pilih Kategori Masuk --</option>
+              <option value="Vendor">🏭 Kiriman Baru dari Vendor (Upload CSV)</option>
+              <option value="Resign">👤 Karyawan Resign (Multi-input / Sekali Submit)</option>
+            </select>
+          </div>
+
+          <div id="alurVendorArea" class="card p-4 shadow-sm border-0 bg-white d-none">
+  <h5 class="fw-bold text-success mb-3"><i class="bi bi-file-earmark-excel me-2"></i>Upload Nota Pengadaan Vendor (.csv)</h5>
+  <div class="row g-3 align-items-center">
+    <div class="col-auto"><input type="file" id="vendorCsvPicker" accept=".csv" class="form-control form-control-sm"></div>
+    <div class="col-auto"><button class="btn btn-sm btn-success px-3" onclick="eksekusiUploadCSVVendor()"><i class="bi bi-upload me-1"></i> Upload</button></div>
+    
+    <div class="col-auto">
+      <button class="btn btn-sm btn-outline-success px-3" onclick="downloadTemplateVendor()">
+        <i class="bi bi-download me-1"></i> Download Template CSV Vendor
+      </button>
+    </div>
+  </div>
+</div>
+
+          <div id="alurResignArea" class="card p-4 shadow-sm border-0 bg-white d-none">
+            <h5 class="fw-bold text-primary mb-3"><i class="bi bi-person-down me-2"></i>Form Kolektif Pengembalian Baju Karyawan Resign</h5>
+            <form id="formResignMassal" onsubmit="simpanResignMassal(event)">
+              <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                  <label class="form-label small fw-bold">Nama Karyawan Resign</label>
+                  <input type="text" id="resignNama" class="form-control form-control-sm" required placeholder="Masukkan nama, contoh: ANISA">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label small fw-bold">Posisi Kerja</label>
+                  <input type="text" id="resignPosisi" class="form-control form-control-sm" required placeholder="Contoh: Apoteker">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label small fw-bold">Departemen / Cabang</label>
+                  <input type="text" id="resignCabang" class="form-control form-control-sm" required placeholder="Contoh: Cabang Menteng">
+                </div>
+              </div>
+              
+              <div class="table-responsive mb-3">
+                <table class="table table-bordered align-middle">
+                  <thead class="table-light small text-uppercase">
+                    <tr>
+                      <th style="width: 45%;">Pilih Jenis Seragam & Ukuran</th>
+                      <th style="width: 15%;">Jumlah (Pcs)</th>
+                      <th style="width: 30%;">Kondisi Kelayakan Baju</th>
+                      <th style="width: 10%;" class="text-center">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody id="resignItemsTableBody">
+                    </tbody>
+                </table>
+              </div>
+              
+              <div class="mb-4">
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="addResignItemRow()">
+                  <i class="bi bi-plus-circle me-1"></i> Tambah Baris Baju
+                </button>
+              </div>
+              
+              <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-save me-1"></i> Simpan Semua Pengembalian</button>
+            </form>
+          </div>
+        `;
+      } catch (err) { 
+        console.error(err); 
+        showError(err.message);
+      } finally {
+        showLoader(false);
+      }
+    }
+
+    function toggleAlurMasuk(sumber) {
+      document.getElementById('alurVendorArea').classList.add('d-none');
+      document.getElementById('alurResignArea').classList.add('d-none');
+      if (sumber === 'Vendor') document.getElementById('alurVendorArea').classList.remove('d-none');
+      if (sumber === 'Resign') {
+        document.getElementById('alurResignArea').classList.remove('d-none');
+        document.getElementById('resignItemsTableBody').innerHTML = "";
+        addResignItemRow(); // Kasih 1 baris input pertama otomatis biar tidak kosong
+      }
+    }
+
+    // Fungsi menambah baris input seragam baru secara dinamis
+    function addResignItemRow() {
+      const tbody = document.getElementById('resignItemsTableBody');
+      const row = document.createElement('tr');
+      row.className = "resign-item-row";
+      row.innerHTML = `
+        <td>
+          <select class="form-select form-select-sm select-seragam-id" required>
+            <option value="">-- Pilih Seragam --</option>
+            ${globalMasterSeragamOptions}
+          </select>
+        </td>
+        <td>
+          <input type="number" class="form-control form-control-sm input-jumlah" required min="1" value="1">
+        </td>
+        <td>
+          <select class="form-select form-select-sm select-kondisi" required>
+            <option value="Resign - Bekas Layak">👤 Bekas Layak (Masuk Stok Alokasi &amp; Event)</option>
+            <option value="Resign - Destroy">❌ Bekas Tidak Layak (Masuk Daftar Destroy/Pemusnahan)</option>
+          </select>
+        </td>
+        <td class="text-center">
+          <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeResignItemRow(this)">
+            <i class="bi bi-trash"></i>
+          </button>
+        </td>
+      `;
+      tbody.appendChild(row);
+    }
+
+    // Fungsi menghapus baris data jika kelebihan memasukkan baris jatah baju
+    function removeResignItemRow(button) {
+      const tbody = document.getElementById('resignItemsTableBody');
+      if (tbody.querySelectorAll('tr').length > 1) {
+        button.closest('tr').remove();
+      } else {
+        Swal.fire('Info', 'Minimal harus menginput 1 data seragam, Kak Ahmad!', 'info');
+      }
+    }
+
+    // Fungsi memproses seluruh baris inputan sekaligus ke Supabase transaksi_seragam
+    async function simpanResignMassal(e) {
+      e.preventDefault();
+      showLoader(true);
+      
+      const namaKaryawan = document.getElementById('resignNama').value.trim();
+      const posisiKaryawan = document.getElementById('resignPosisi').value.trim();
+      const cabangKaryawan = document.getElementById('resignCabang').value.trim();
+      const rows = document.querySelectorAll('.resign-item-row');
+      const jsonPaketData = [];
+      
+      rows.forEach(row => {
+        const idSeragam = row.querySelector('.select-seragam-id').value;
+        const qty = row.querySelector('.input-jumlah').value;
+        const jenisSumberResign = row.querySelector('.select-kondisi').value;
+        
+        if (idSeragam && qty) {
+          jsonPaketData.push({
+            tipe_transaksi: "MASUK",
+            jenis_sumber: jenisSumberResign,
+            seragam_id: parseInt(idSeragam),
+            jumlah: parseInt(qty),
+            keterangan: `Pengembalian baju dari karyawan resign: ${namaKaryawan} (${posisiKaryawan} - ${cabangKaryawan}). Status Kelayakan: ${jenisSumberResign}`
+          });
+        }
+      });
+
+      if (jsonPaketData.length === 0) {
+        Swal.fire('Peringatan!', 'Belum ada item baju jatah seragam yang dipilih.', 'warning');
+        showLoader(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/transaksi_seragam`, {
+          method: "POST",
+          headers: supabaseHeaders,
+          body: JSON.stringify(jsonPaketData)
+        });
+        
+        if (res.ok) {
+          Swal.fire('Sukses Menyimpan!', `Berhasil mencatat ${jsonPaketData.length} jatah pengembalian seragam milik ${namaKaryawan}!`, 'success');
+          renderSeragamMasuk(); // Reset ulang form agar bersih kembali
+        } else {
+          throw new Error("Gagal menyuntikkan paket data transaksi massal ke Supabase.");
+        }
+      } catch (err) {
+        Swal.fire('Gagal!', err.message, 'error');
+      } finally {
+        showLoader(false);
+      }
+    }
+
+    function toggleAlurMasuk(sumber) {
+      document.getElementById('alurVendorArea').classList.add('d-none');
+      document.getElementById('alurResignArea').classList.add('d-none');
+      if (sumber === 'Vendor') document.getElementById('alurVendorArea').classList.remove('d-none');
+      if (sumber && sumber.includes('Resign')) document.getElementById('alurResignArea').classList.remove('d-none');
+    }
+
+    async function simpanResignManual(e) {
+      e.preventDefault();
+      showLoader(true);
+      const sumber = document.getElementById('sumberMasukSelect').value;
+      const nama = document.getElementById('resignNama').value;
+      const seragamId = document.getElementById('resignSeragamId').value;
+      const jumlah = document.getElementById('resignJumlah').value;
+
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/transaksi_seragam`, {
+          method: "POST",
+          headers: supabaseHeaders,
+          body: JSON.stringify({
+            tipe_transaksi: "MASUK",
+            jenis_sumber: sumber,
+            seragam_id: parseInt(seragamId),
+            jumlah: parseInt(jumlah),
+            keterangan: `Pengembalian baju dari karyawan resign: ${nama}`
+          })
+        });
+        if (res.ok) {
+          Swal.fire('Sukses!', 'Data masuk berhasil dicatat!', 'success');
+          document.getElementById('formResignManual').reset();
+        } else {
+          throw new Error("Gagal menginput ke laci transaksi_seragam.");
+        }
+      } catch (err) { 
+        Swal.fire('Gagal!', err.message, 'error');
+      } finally {
+        showLoader(false);
+      }
+    }
+
+    // ==========================================
+    // 5. MENU PEMINJAMAN EVENT (transaksi_seragam log alur)
+    // ==========================================
+    async function renderPeminjamanEvent() {
+      showLoader(true);
+      try {
+        const resMaster = await fetch(`${SUPABASE_URL}/rest/v1/master_seragam?order=id.asc`, { headers: supabaseHeaders });
+        if(!resMaster.ok) throw new Error("Gagal memuat master_seragam.");
+        const masterSeragam = await resMaster.json();
+        let opsiSeragam = masterSeragam.map(m => `<option value="${m.id}">${m.nama_seragam} - ${m.gender} (${m.ukuran})</option>`).join('');
+
+        // Ambil log transaksi pengeluaran event yang belum dipulangkan
+        const resTx = await fetch(`${SUPABASE_URL}/rest/v1/transaksi_seragam?jenis_sumber=eq.Event%20Keluar&order=id.desc`, { headers: supabaseHeaders });
+        if(!resTx.ok) throw new Error("Gagal memuat data log dari 'transaksi_seragam'.");
+        const dataTx = await resTx.json();
+
+        // Filter transaksi yang sudah dikembalikan di sesi ini
+        const dataTxFiltered = dataTx.filter(t => !returnedEventIds.has(t.id));
+
+        let rows = dataTxFiltered.map(t => `
+          <tr data-tx-id="${t.id}">
+            <td><strong>#${t.id}</strong></td>
+            <td>${t.keterangan || 'Event Alpro'}</td>
+            <td>ID Seragam: #${t.seragam_id}</td>
+            <td class="fw-bold text-danger">${t.jumlah} pcs</td>
+            <td>
+              <button class="btn btn-sm btn-outline-success" onclick="prosesPengembalianEvent(${t.id}, ${t.seragam_id}, ${t.jumlah}, '${(t.keterangan || '').replace(/'/g, "\\'")}')">
+                <i class="bi bi-arrow-down-left-circle me-1"></i> Proses Kembali
+              </button>
+            </td>
+          </tr>
+        `).join('');
+
+        document.getElementById('app').innerHTML = `
+          <h3 class="fw-bold mb-4">Peminjaman Seragam Event</h3>
+          <div class="card p-4 shadow-sm border-0 bg-white mb-4">
+            <h5 class="fw-bold text-danger mb-3">Form Pinjam Baju Baru</h5>
+            <form onsubmit="simpanPeminjamanEvent(event)">
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <label class="form-label small fw-bold">Nama Karyawan / Event</label>
+                  <input type="text" id="eventKeterangan" class="form-control form-control-sm" required placeholder="Contoh: Event Booth PRJ">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label small fw-bold">Nama Peminjam</label>
+                  <input type="text" id="eventPeminjam" class="form-control form-control-sm" required placeholder="Nama lengkap peminjam">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label small fw-bold">Posisi Kerja</label>
+                  <input type="text" id="eventPosisi" class="form-control form-control-sm" required placeholder="Contoh: SPG">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label small fw-bold">Cabang / Departemen</label>
+                  <input type="text" id="eventCabang" class="form-control form-control-sm" required placeholder="Contoh: Cabang Sudirman">
+                </div>
+                <div class="col-md-5">
+                  <label class="form-label small fw-bold">Pilih Item Baju</label>
+                  <select id="eventSeragamId" class="form-select form-select-sm" required>${opsiSeragam}</select>
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label small fw-bold">Jumlah (Pcs)</label>
+                  <input type="number" id="eventJumlah" class="form-control form-control-sm" required min="1" value="1">
+                </div>
+                <div class="col-md-5 d-flex align-items-end">
+                  <button type="submit" class="btn btn-sm btn-danger w-100"><i class="bi bi-arrow-up-right-circle me-1"></i> Keluarkan</button>
+                </div>
+              </div>
+            </form>
+          </div>
+
+          <div class="card p-4 shadow-sm border-0 bg-white">
+            <h5 class="fw-bold text-dark mb-3">Monitoring Peminjaman Aktif</h5>
+            <div class="table-responsive">
+              <table class="table table-hover align-middle">
+                <thead class="table-light text-uppercase small">
+                  <tr><th>ID Pinjam</th><th>Karyawan/Event</th><th>ID Item</th><th>Qty</th><th>Aksi</th></tr>
+                </thead>
+                <tbody id="eventMonitoringBody">${rows || '<tr><td colspan="5" class="text-center">Tidak ada pinjaman aktif.</td></tr>'}</tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      } catch (err) { 
+        console.error(err); 
+        showError(err.message);
+      } finally {
+        showLoader(false);
+      }
+    }
+
+    // Set untuk menyimpan ID transaksi yang sudah dikembalikan (per sesi)
+    let returnedEventIds = new Set();
+
+    async function simpanPeminjamanEvent(e) {
+      e.preventDefault();
+      showLoader(true);
+      const namaEvent = document.getElementById('eventKeterangan').value.trim();
+      const namaPeminjam = document.getElementById('eventPeminjam').value.trim();
+      const posisiPeminjam = document.getElementById('eventPosisi').value.trim();
+      const cabangPeminjam = document.getElementById('eventCabang').value.trim();
+      const seragamId = document.getElementById('eventSeragamId').value;
+      const jumlah = document.getElementById('eventJumlah').value;
+
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/transaksi_seragam`, {
+          method: "POST",
+          headers: supabaseHeaders,
+          body: JSON.stringify({
+            tipe_transaksi: "KELUAR",
+            jenis_sumber: "Event Keluar",
+            seragam_id: parseInt(seragamId),
+            jumlah: parseInt(jumlah),
+            keterangan: `Peminjaman Event: ${namaEvent} | Peminjam: ${namaPeminjam} (${posisiPeminjam} - ${cabangPeminjam})`
+          })
+        });
+        if (res.ok) {
+          Swal.fire('Berhasil!', 'Log peminjaman aktif dicatat!', 'success');
+          renderPeminjamanEvent();
+        } else {
+          throw new Error("Gagal mendaftarkan peminjaman.");
+        }
+      } catch (err) { 
+        Swal.fire('Gagal!', err.message, 'error');
+      } finally {
+        showLoader(false);
+      }
+    }
+
+    async function prosesPengembalianEvent(txId, seragamId, jumlah, namaKaryawan) {
+      Swal.fire({
+        title: 'Konfirmasi Pengembalian',
+        text: `Peminjaman "${namaKaryawan}" sebanyak ${jumlah} pcs baju akan diproses kembali ke stok. Lanjutkan?`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Ya, Kembalikan'
+      }).then(async (result) => {
+        if(result.isConfirmed) {
+          showLoader(true);
+          try {
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/transaksi_seragam`, {
+              method: "POST",
+              headers: supabaseHeaders,
+              body: JSON.stringify({
+                tipe_transaksi: "MASUK",
+                jenis_sumber: "Event Masuk",
+                seragam_id: seragamId,
+                jumlah: parseInt(jumlah),
+                keterangan: `Pengembalian dari event: ${namaKaryawan}`
+              })
+            });
+            if (res.ok) {
+              // Tandai ID ini sebagai sudah dikembalikan, lalu hapus row dari tabel tanpa full re-render
+              returnedEventIds.add(txId);
+              const row = document.querySelector(`tr[data-tx-id="${txId}"]`);
+              if (row) row.remove();
+              // Cek jika tabel sudah kosong
+              const tbody = document.getElementById('eventMonitoringBody');
+              if (tbody && tbody.querySelectorAll('tr').length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Tidak ada pinjaman aktif.</td></tr>';
+              }
+              Swal.fire('Sukses Kembali!', 'Stok event terupdate otomatis.', 'success');
+            } else {
+              throw new Error("Gagal memproses pengembalian seragam event.");
+            }
+          } catch (err) { 
+            Swal.fire('Gagal!', err.message, 'error');
+          } finally {
+            showLoader(false);
+          }
+        }
+      });
+    }
+
+    // ==========================================
+    // 6. RIWAYAT MUTASI (transaksi_seragam)
+    // ==========================================
+    async function renderRiwayatTransaksi() {
+  showLoader(true);
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/transaksi_seragam?order=id.desc`, { headers: supabaseHeaders });
+    if(!res.ok) throw new Error("Gagal mengambil log dari 'transaksi_seragam'.");
+    
+    cachedTransactions = await res.json();
+    filteredTransactions = [...cachedTransactions]; // Sinkronkan data awal
+
+    document.getElementById('app').innerHTML = `
+      <div class="card p-4 shadow-sm border-0 bg-white">
+        <h4 class="fw-bold mb-4 text-primary"><i class="bi bi-arrow-left-right me-2"></i>Log Buku Mutasi Transaksi Gudang</h4>
+        
+        <div class="row g-3 mb-4 p-3 bg-light rounded border">
+          <div class="col-md-3">
+            <label class="form-label small fw-bold">Cari Karyawan / Keterangan</label>
+            <input type="text" id="txSearchInput" class="form-control form-control-sm" placeholder="Ketik nama karyawan..." oninput="applyTransactionFilters()">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">Tipe Transaksi</label>
+            <select id="txTypeSelect" class="form-select form-select-sm" onchange="applyTransactionFilters()">
+              <option value="">-- Semua --</option>
+              <option value="MASUK">🟢 MASUK</option>
+              <option value="KELUAR">🔴 KELUAR</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">Tanggal Mulai</label>
+            <input type="date" id="txStartDate" class="form-control form-control-sm" onchange="applyTransactionFilters()">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">Tanggal Selesai</label>
+            <input type="date" id="txEndDate" class="form-control form-control-sm" onchange="applyTransactionFilters()">
+          </div>
+          <div class="col-md-3 d-flex align-items-end justify-content-end">
+            <button class="btn btn-sm btn-success w-100" onclick="downloadFilteredTxCSV()">
+              <i class="bi bi-file-earmark-spreadsheet me-1"></i> Download CSV Terfilter
+            </button>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead class="table-light text-uppercase small">
+              <tr><th>Waktu Catat</th><th>Tipe</th><th>Sumber Alur</th><th>ID Item</th><th>Jumlah Mutasi</th><th>Keterangan</th></tr>
+            </thead>
+            <tbody id="transaksiTableBody">
+              </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+    
+    // Panggil fungsi render baris data pertama kali
+    updateTransactionTableRows(filteredTransactions);
+
+  } catch (err) { 
+    console.error(err); 
+    showError(err.message);
+  } finally {
+    showLoader(false);
+  }
+}
+
+// Fungsi menyuntikkan baris data ke dalam elemen tabel HTML
+function updateTransactionTableRows(dataList) {
+  const tbody = document.getElementById('transaksiTableBody');
+  if (!tbody) return;
+  
+  if (dataList.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Tidak ada data transaksi mutasi yang cocok dengan filter.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = dataList.map(t => `
+    <tr>
+      <td><small>${t.tanggal_transaksi ? new Date(t.tanggal_transaksi).toLocaleString('id-ID') : '-'}</small></td>
+      <td><span class="badge ${t.tipe_transaksi === 'MASUK' ? 'bg-success' : 'bg-danger'}">${t.tipe_transaksi || ''}</span></td>
+      <td><strong class="text-dark">${t.jenis_sumber || ''}</strong></td>
+      <td>ID Seragam: #${t.seragam_id || ''}</td>
+      <td class="fw-bold">${t.jumlah ?? 0} pcs</td>
+      <td><span class="text-muted small">${t.keterangan || '-'}</span></td>
+    </tr>
+  `).join('');
+}
+
+// Logika penyaringan murni real-time berdasarkan input komponen filter
+function applyTransactionFilters() {
+  const keyword = document.getElementById('txSearchInput').value.toLowerCase().trim();
+  const type = document.getElementById('txTypeSelect').value;
+  const startDateStr = document.getElementById('txStartDate').value;
+  const endDateStr = document.getElementById('txEndDate').value;
+
+  filteredTransactions = cachedTransactions.filter(t => {
+    // 1. Cek kecocokan keyword pencarian pada kolom keterangan atau jenis sumber
+    const textKet = (t.keterangan || '').toLowerCase();
+    const textSumber = (t.jenis_sumber || '').toLowerCase();
+    const matchKeyword = textKet.includes(keyword) || textSumber.includes(keyword);
+
+    // 2. Cek kecocokan tipe mutasi (MASUK/KELUAR)
+    const matchType = type === "" || t.tipe_transaksi === type;
+
+    // 3. Cek pembatasan rentang periode tanggal audit manajemen
+    let matchDate = true;
+    if (t.tanggal_transaksi) {
+      const txDate = new Date(t.tanggal_transaksi);
+      if (startDateStr) {
+        const start = new Date(startDateStr);
+        start.setHours(0,0,0,0);
+        if (txDate < start) matchDate = false;
+      }
+      if (endDateStr) {
+        const end = new Date(endDateStr);
+        end.setHours(23,59,59,999);
+        if (txDate > end) matchDate = false;
+      }
+    } else if (startDateStr || endDateStr) {
+      matchDate = false;
+    }
+
+    return matchKeyword && matchType && matchDate;
+  });
+
+  // Render ulang isi tabel sesuai hasil saringan terbaru
+  updateTransactionTableRows(filteredTransactions);
+}
+
+// Fungsi ekspor otomatis ke file Microsoft Excel / CSV murni data yang terfilter saja
+// ==========================================
+// FIX ENGINE: DOWNLOAD CSV TANPA GESER KOLOM
+// ==========================================
+function downloadFilteredTxCSV() {
+  if (filteredTransactions.length === 0) {
+    Swal.fire('Info', 'Tidak ada data hasil filter yang bisa diunduh, Kak Ahmad!', 'info');
+    return;
+  }
+  
+  const header = ["waktu_catat", "tipe_transaksi", "jenis_sumber_alur", "id_seragam", "jumlah_mutasi", "keterangan"];
+  const data = filteredTransactions.map(t => {
+    // 🌟 KUNCI PERBAIKAN: Hilangkan koma pada tanggal agar tidak memecah kolom CSV saat di-join
+    let waktuFormat = '-';
+    if (t.tanggal_transaksi) {
+      waktuFormat = new Date(t.tanggal_transaksi).toLocaleString('id-ID').replace(',', '');
+    }
+    
+    // Proteksi ekstra: Bungkus semua data teks dengan tanda kutip ganda 
+    // agar jika nama vendor atau keterangan berisi koma, Excel tidak akan pecah/geser
+    const jenisSumberClean = `"${(t.jenis_sumber || '').replace(/"/g, '""')}"`;
+    const keteranganClean = `"${(t.keterangan || '').replace(/"/g, '""')}"`;
+
+    return [
+      waktuFormat,
+      t.tipe_transaksi || '',
+      jenisSumberClean,
+      t.seragam_id || '',
+      t.jumlah || 0,
+      keteranganClean
+    ];
+  });
+
+  triggerDownload("laporan_audit_mutasi_seragam.csv", header, data);
+}
+    // ==========================================
+    // UTILITY: DOWNLOAD & UPLOAD CSV ENGINE
+    // ==========================================
+    function downloadTemplateRequest() {
+      const header = ["nama_karyawan", "nip", "posisi_kerja", "departemen_cabang", "jenis_request", "gender_karyawan", "ukuran_jas", "ukuran_kemeja", "ukuran_kaos"];
+      const data = [["Ahmad Fauzi", "10021", "Apoteker", "Cabang Menteng", "Karyawan Baru", "Pria", "L", "XL", "L"]];
+      triggerDownload("template_request_seragam.csv", header, data);
+    }
+
+    function downloadTemplateVendor() {
+      const header = ["seragam_id", "jumlah_masuk", "nota_vendor"];
+      const data = [["1", "50", "INV-ALPRO-2026-001"], ["2", "100", "INV-ALPRO-2026-001"]];
+      triggerDownload("template_vendor_masuk.csv", header, data);
+    }
+
+    function triggerDownload(filename, header, rows) {
+      let csvContent = header.join(",") + "\n" + rows.map(r => r.join(",")).join("\n");
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function eksekusiUploadCSV() {
+      const filePicker = document.getElementById('csvFilePicker');
+      if (!filePicker || filePicker.files.length === 0) { Swal.fire('Waduh!', 'Pilih file .csv jatah karyawan terlebih dahulu!', 'warning'); return; }
+      const file = filePicker.files[0];
+      const reader = new FileReader();
+      showLoader(true);
+      reader.onload = async function (e) {
+        try {
+          const lines = e.target.result.split("\n");
+          const jsonBody = [];
+          for (let i = 1; i < lines.length; i++) {
+            const row = lines[i].split(",");
+            if (row.length < 5 || row[0].trim() === "") continue;
+            jsonBody.push({
+              nama_karyawan: row[0].trim(),
+              nip: row[1].trim(),
+              posisi_kerja: row[2].trim(),
+              departemen_cabang: row[3].trim(),
+              jenis_request: row[4].trim(),
+              gender_karyawan: row[5].trim(),
+              ukuran_jas: row[6]?.trim() === 'NULL' || !row[6] ? null : row[6].trim(),
+              ukuran_kemeja: row[7]?.trim() === 'NULL' || !row[7] ? null : row[7].trim(),
+              ukuran_kaos: row[8]?.trim() === 'NULL' || !row[8] ? null : row[8].trim()
+            });
+          }
+          const res = await fetch(`${SUPABASE_URL}/rest/v1/request_seragam`, {
+            method: "POST", headers: { ...supabaseHeaders, "Prefer": "return=minimal" }, body: JSON.stringify(jsonBody)
+          });
+          if (res.ok) { 
+            Swal.fire('Sukses!', `${jsonBody.length} data request berhasil di-upload massal!`, 'success'); 
+            renderRequestSeragam(); 
+          } else {
+            throw new Error("Gagal mengunggah ke laci request_seragam.");
+          }
+        } catch (err) { 
+          Swal.fire('Gagal!', err.message, 'error'); 
+        } finally {
+          showLoader(false);
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function eksekusiUploadCSVVendor() {
+  const filePicker = document.getElementById('vendorCsvPicker');
+  if (!filePicker || filePicker.files.length === 0) { Swal.fire('Waduh!', 'Pilih file .csv vendor!', 'warning'); return; }
+  const file = filePicker.files[0];
+  const reader = new FileReader();
+  showLoader(true);
+  
+  reader.onload = async function (e) {
+    try {
+      const lines = e.target.result.split(/\r?\n/);
+      const jsonBody = [];
+      let itemGagalCount = 0;
+
+      // 🌟 KUNCI PERBAIKAN 2: Membaca posisi urutan kolom secara dinamis berdasarkan Header CSV
+      const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
+      const idxNama = headers.indexOf("nama_seragam");
+      const idxGender = headers.indexOf("gender");
+      const idxUkuran = headers.indexOf("ukuran");
+      const idxJumlah = headers.indexOf("jumlah");
+      const idxNota = headers.indexOf("nota_vendor");
+
+      if (idxNama === -1 || idxGender === -1 || idxUkuran === -1 || idxJumlah === -1) {
+        throw new Error("Format header CSV salah! Pastikan kolom wajib ini ada: nama_seragam, gender, ukuran, jumlah");
+      }
+
+      for (let i = 1; i < lines.length; i++) {
+        const row = lines[i].split(",");
+        if (row.length <= 1 || row[idxNama]?.trim() === "") continue;
+
+        const csvNama = row[idxNama].trim().toLowerCase();
+        const csvGender = row[idxGender].trim().toLowerCase();
+        const csvUkuran = row[idxUkuran].trim().toLowerCase();
+        const csvJumlah = parseInt(row[idxJumlah]?.trim() || "0");
+        const csvNota = idxNota !== -1 ? (row[idxNota]?.trim() || '-') : '-';
+
+        // 🌟 FILTRASI PINTAR: Lewati otomatis jatah ukuran baju yang jumlahnya 0 agar tidak mengotori database
+        if (isNaN(csvJumlah) || csvJumlah <= 0) continue;
+
+        // Mencari id seragam asli di database berdasarkan kombinasi nama, gender, dan ukuran teks
+        const cocok = cachedMasterSeragam.find(m => 
+          m.nama_seragam.toLowerCase().trim() === csvNama &&
+          m.gender.toLowerCase().trim() === csvGender &&
+          m.ukuran.toLowerCase().trim() === csvUkuran
+        );
+
+        if (cocok) {
+          jsonBody.push({
+            tipe_transaksi: "MASUK",
+            jenis_sumber: "Vendor",
+            seragam_id: cocok.id,
+            jumlah: csvJumlah,
+            keterangan: `Penerimaan Vendor Nota: ${csvNota}`
+          });
+        } else {
+          itemGagalCount++;
+          console.warn(`Tidak cocok dengan database: ${row[idxNama]} | ${row[idxGender]} | ${row[idxUkuran]}`);
+        }
+      }
+
+      if (jsonBody.length === 0) {
+        throw new Error("Tidak ada data baju (dengan jumlah > 0) yang cocok dengan spesifikasi Master Seragam.");
+      }
+
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/transaksi_seragam`, {
+        method: "POST", 
+        headers: { ...supabaseHeaders, "Prefer": "return=minimal" }, 
+        body: JSON.stringify(jsonBody)
+      });
+
+      if (res.ok) { 
+        if (itemGagalCount > 0) {
+          Swal.fire('Sukses Parsial!', `Stok berhasil masuk. Ada ${itemGagalCount} baris dilewati karena salah ketik nama/ukuran baju (Cek Console).`, 'warning');
+        } else {
+          Swal.fire('Sukses!', 'Seluruh jatah stok baru dari vendor berhasil masuk ke gudang!', 'success');
+        }
+        renderSeragamMasuk(); 
+      } else {
+        throw new Error("Gagal mengirim paket data mutasi masuk ke Supabase.");
+      }
+    } catch (err) { 
+      Swal.fire('Gagal!', err.message, 'error'); 
+    } finally {
+      showLoader(false);
+    }
+  };
+  reader.readAsText(file);
+}
+
+    window.onload = function() { 
+      renderDashboard(); 
+    };
+// ==========================================
+// UTILITY BARU: DOWNLOAD TEMPLATE VENDOR CSV
+// (Tambahkan fungsi ini di bagian bawah dekat dengan fungsi downloadTemplateRequest)
+// ==========================================
+function downloadTemplateVendor() {
+  // Kolom diubah menjadi teks yang mudah dipahami orang awam
+  const header = ["nama_seragam", "gender", "ukuran", "jumlah", "nota_vendor"]; 
+  const data = [
+    ["Kemeja", "Pria", "L", "50", "INV-ALPRO-2026-001"], 
+    ["Kaos Polo", "Wanita", "M", "100", "INV-ALPRO-2026-001"]
+  ];
+  triggerDownload("template_vendor_masuk.csv", header, data);
+}
+  </script>
+</body>
+</html>
